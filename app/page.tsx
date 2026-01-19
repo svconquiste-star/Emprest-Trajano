@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { normalizarTelefone, validarTelefone, validarEmail } from './lib/utils'
 
 interface Window {
   fbq?: any
@@ -37,6 +38,7 @@ export default function Home() {
           s.parentNode.insertBefore(t,s)
         }(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
         fbq('init','1013145803462320');
+        fbq('init','754980670506724');
         fbq('track','PageView');
       `
       document.head.appendChild(script)
@@ -49,6 +51,15 @@ export default function Home() {
       img.src = 'https://www.facebook.com/tr?id=1013145803462320&ev=PageView&noscript=1'
       noscript.appendChild(img)
       document.head.appendChild(noscript)
+
+      const noscript2 = document.createElement('noscript')
+      const img2 = document.createElement('img')
+      img2.height = 1
+      img2.width = 1
+      img2.style.display = 'none'
+      img2.src = 'https://www.facebook.com/tr?id=754980670506724&ev=PageView&noscript=1'
+      noscript2.appendChild(img2)
+      document.head.appendChild(noscript2)
     }
   }, [])
 
@@ -65,17 +76,9 @@ export default function Home() {
     }
   }
 
-  const hashEmail = (email: string): string => {
-    return email.toLowerCase().trim()
-  }
-
-  const hashPhone = (phone: string): string => {
-    return phone.replace(/\D/g, '')
-  }
-
   const isWhatsAppEnabled = selectedCity && selectedCity !== "OUTRA CIDADE" && atendidas.has(selectedCity)
 
-  const handleWhatsAppClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleWhatsAppClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault()
     e.stopPropagation()
     
@@ -86,19 +89,53 @@ export default function Home() {
       return
     }
 
-    if (typeof window !== 'undefined' && (window as any).fbq) {
-      const userData: any = {}
-      
-      if (userEmail) {
-        userData.em = hashEmail(userEmail)
-      }
-      if (userPhone) {
-        userData.ph = hashPhone(userPhone)
-      }
+    if (!userPhone || !validarTelefone(userPhone)) {
+      console.log('Telefone inválido ou não informado')
+      alert('Por favor, informe um telefone válido')
+      return
+    }
 
-      console.log('Tracking Meta Ads event with data:', userData)
-      ;(window as any).fbq('trackCustom', 'ConversaIniciada', userData)
-      ;(window as any).fbq('track', 'PageView', userData)
+    if (userEmail && !validarEmail(userEmail)) {
+      console.log('Email inválido')
+      alert('Por favor, informe um email válido')
+      return
+    }
+
+    const telefonNormalizado = normalizarTelefone(userPhone)
+
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          telefone_cliente: userPhone,
+          email_cliente: userEmail || undefined,
+          mensagem: 'Quero saber mais sobre empréstimo',
+          cidade: selectedCity,
+        }),
+      })
+
+      const data = await response.json()
+      console.log('Resposta do servidor:', data)
+
+      if (typeof window !== 'undefined' && (window as any).fbq) {
+        const userData: any = {}
+        
+        if (userEmail) {
+          userData.em = userEmail.toLowerCase().trim()
+        }
+        if (userPhone) {
+          userData.ph = telefonNormalizado
+        }
+
+        console.log('Tracking Meta Ads event with data:', userData)
+        ;(window as any).fbq('trackCustom', 'ConversaIniciada', userData)
+        ;(window as any).fbq('track', 'PageView', userData)
+      }
+    } catch (error) {
+      console.error('Erro ao enviar dados:', error)
     }
 
     console.log('Opening WhatsApp link:', whatsappLink)

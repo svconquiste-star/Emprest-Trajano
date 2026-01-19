@@ -59,7 +59,12 @@ app/
 
 ## Variáveis de Ambiente
 
-Nenhuma variável obrigatória no momento. Meta Ads Pixel ID está hardcoded.
+```bash
+# Webhook URL do n8n para receber eventos de contato
+N8N_WEBHOOK_URL=https://seu-n8n.com/webhook/seu-webhook-id
+```
+
+Configure no arquivo `.env.local` (cópia de `.env.example`).
 
 ## Suporte
 
