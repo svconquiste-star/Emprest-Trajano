@@ -1,17 +1,32 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { normalizarTelefone, validarTelefone, validarEmail } from './lib/utils'
+import { useEffect, useState, useRef } from 'react'
+import { normalizarTelefone, validarTelefone, validarEmail, hashSHA256, detectarDispositivo, obterSistemaOperacional } from './lib/utils'
 
 interface Window {
   fbq?: any
 }
+
+interface TrackingEvent {
+  event_name: string
+  event_time: number
+  event_id: string
+  action_source: string
+  user_data: any
+  custom_data: any
+  event_source_url?: string
+}
+
+const N8N_WEBHOOK_URL = 'https://n8n.multinexo.com.br/webhook/trajano319885-9382-b6e7-03fba8932ee6'
 
 export default function Home() {
   const [selectedCity, setSelectedCity] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [userEmail, setUserEmail] = useState<string>('')
   const [userPhone, setUserPhone] = useState<string>('')
+  const [pageStartTime] = useState<number>(Date.now())
+  const [scrollPercentage, setScrollPercentage] = useState<number>(0)
+  const scrollTrackedRef = useRef<Set<number>>(new Set())
 
   const whatsappLink = "https://wa.me/553198859382?text=Ol%C3%A1%21%20Quero%20fazer%20uma%20simula%C3%A7%C3%A3o%20de%20empr%C3%A9stimo.%20Meu%20nome%20%C3%A9%20____%2C%20valor%20desejado%20R%24____%2C%20minha%20renda%20%C3%A9%20R%24____."
 
@@ -25,6 +40,87 @@ export default function Home() {
     "MÁRIO CAMPOS", "MATEUS LEME", "SÃO JOAQUIM DE BICAS", "SARZEDO"
   ])
 
+  const sendToN8N = async (event: TrackingEvent) => {
+    try {
+      const payload = {
+        data: [event],
+        timestamp: new Date().toISOString(),
+        source: 'landing_page',
+      }
+      
+      console.log('Enviando evento para N8N:', payload)
+      
+      const response = await fetch(N8N_WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+      
+      if (!response.ok) {
+        console.error('Erro ao enviar para N8N:', response.statusText)
+      } else {
+        console.log('Evento enviado com sucesso para N8N')
+      }
+    } catch (error) {
+      console.error('Erro na requisição para N8N:', error)
+    }
+  }
+
+  const trackEvent = async (eventName: string, customData: any = {}) => {
+    if (typeof window === 'undefined') return
+
+    const eventTime = Math.floor(Date.now() / 1000)
+    const eventId = `${eventName}_${eventTime}_${Math.random().toString(36).substr(2, 9)}`
+    const dispositivo = detectarDispositivo()
+    const sistemaOperacional = obterSistemaOperacional()
+
+    const userData: any = {
+      client_ip_address: 'client',
+      client_user_agent: navigator.userAgent,
+    }
+
+    if (userEmail) {
+      userData.em = [await hashSHA256(userEmail.toLowerCase().trim())]
+    }
+    if (userPhone) {
+      const normalizedPhone = normalizarTelefone(userPhone)
+      userData.ph = [await hashSHA256(normalizedPhone)]
+    }
+
+    const event: TrackingEvent = {
+      event_name: eventName,
+      event_time: eventTime,
+      event_id: eventId,
+      action_source: 'website',
+      user_data: userData,
+      custom_data: {
+        ...customData,
+        page_title: document.title,
+        page_url: window.location.href,
+        timestamp: new Date().toISOString(),
+        device_type: dispositivo,
+        operating_system: sistemaOperacional,
+        is_mobile: dispositivo === 'mobile',
+      },
+      event_source_url: window.location.href,
+    }
+
+    await sendToN8N(event)
+
+    if ((window as any).fbq) {
+      const fbqData = {
+        ...customData,
+        email: userEmail ? userEmail.toLowerCase().trim() : undefined,
+        phone: userPhone ? normalizarTelefone(userPhone) : undefined,
+        device_type: dispositivo,
+        operating_system: sistemaOperacional,
+      }
+      ;(window as any).fbq('trackCustom', eventName, fbqData)
+    }
+  }
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const script = document.createElement('script')
@@ -37,7 +133,6 @@ export default function Home() {
           t.src=v;s=b.getElementsByTagName(e)[0];
           s.parentNode.insertBefore(t,s)
         }(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
-        fbq('init','1013145803462320');
         fbq('init','754980670506724');
         fbq('track','PageView');
       `
@@ -48,30 +143,57 @@ export default function Home() {
       img.height = 1
       img.width = 1
       img.style.display = 'none'
-      img.src = 'https://www.facebook.com/tr?id=1013145803462320&ev=PageView&noscript=1'
+      img.src = 'https://www.facebook.com/tr?id=754980670506724&ev=PageView&noscript=1'
       noscript.appendChild(img)
       document.head.appendChild(noscript)
 
-      const noscript2 = document.createElement('noscript')
-      const img2 = document.createElement('img')
-      img2.height = 1
-      img2.width = 1
-      img2.style.display = 'none'
-      img2.src = 'https://www.facebook.com/tr?id=754980670506724&ev=PageView&noscript=1'
-      noscript2.appendChild(img2)
-      document.head.appendChild(noscript2)
+      trackEvent('ViewContent', {
+        content_type: 'landing_page',
+        content_id: 'emprestimo_trajano',
+        currency: 'BRL',
+      })
     }
   }, [])
 
-  const handleCityClick = (cidade: string) => {
-    if (typeof window !== 'undefined' && (window as any).fbq) {
-      (window as any).fbq('trackCustom', 'CidadeSelecionada', { cidade })
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.scrollY
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight
+      const scrollPercent = docHeight > 0 ? Math.round((scrollTop / docHeight) * 100) : 0
+      
+      setScrollPercentage(scrollPercent)
+
+      const milestones = [25, 50, 75, 100]
+      milestones.forEach((milestone) => {
+        if (scrollPercent >= milestone && !scrollTrackedRef.current.has(milestone)) {
+          scrollTrackedRef.current.add(milestone)
+          trackEvent('ScrollMilestone', {
+            scroll_percentage: milestone,
+            time_on_page: Math.round((Date.now() - pageStartTime) / 1000),
+          })
+        }
+      })
     }
 
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [pageStartTime])
+
+  const handleCityClick = async (cidade: string) => {
     if (cidade === "OUTRA CIDADE" || !atendidas.has(cidade)) {
+      await trackEvent('CityNotAvailable', {
+        cidade,
+        content_type: 'city_selection',
+        content_id: cidade,
+      })
       setIsModalOpen(true)
       setSelectedCity(null)
     } else {
+      await trackEvent('ViewContent', {
+        content_type: 'city_selection',
+        content_id: cidade,
+        currency: 'BRL',
+      })
       setSelectedCity(cidade)
     }
   }
@@ -82,28 +204,43 @@ export default function Home() {
     e.preventDefault()
     e.stopPropagation()
     
-    console.log('WhatsApp clicked. Enabled:', isWhatsAppEnabled, 'City:', selectedCity)
-    
     if (!selectedCity || selectedCity === "OUTRA CIDADE" || !atendidas.has(selectedCity)) {
-      console.log('WhatsApp not enabled, returning')
       return
     }
 
     if (!userPhone || !validarTelefone(userPhone)) {
-      console.log('Telefone inválido ou não informado')
+      await trackEvent('ValidationError', {
+        error_type: 'invalid_phone',
+        content_type: 'form_validation',
+        content_id: 'phone_validation',
+      })
       alert('Por favor, informe um telefone válido')
       return
     }
 
     if (userEmail && !validarEmail(userEmail)) {
-      console.log('Email inválido')
+      await trackEvent('ValidationError', {
+        error_type: 'invalid_email',
+        content_type: 'form_validation',
+        content_id: 'email_validation',
+      })
       alert('Por favor, informe um email válido')
       return
     }
 
     const telefonNormalizado = normalizarTelefone(userPhone)
+    const timeOnPage = Math.round((Date.now() - pageStartTime) / 1000)
 
     try {
+      await trackEvent('Lead', {
+        content_type: 'form_submission',
+        content_id: 'whatsapp_lead',
+        currency: 'BRL',
+        cidade: selectedCity,
+        time_on_page: timeOnPage,
+        scroll_percentage: scrollPercentage,
+      })
+
       const response = await fetch('/api/contact', {
         method: 'POST',
         headers: {
@@ -117,28 +254,51 @@ export default function Home() {
         }),
       })
 
-      const data = await response.json()
-      console.log('Resposta do servidor:', data)
-
-      if (typeof window !== 'undefined' && (window as any).fbq) {
-        const userData: any = {}
+      if (response.ok) {
+        const data = await response.json()
         
-        if (userEmail) {
-          userData.em = userEmail.toLowerCase().trim()
-        }
-        if (userPhone) {
-          userData.ph = telefonNormalizado
-        }
+        await trackEvent('Contact', {
+          content_type: 'whatsapp_contact',
+          content_id: 'whatsapp_initiated',
+          currency: 'BRL',
+          cidade: selectedCity,
+          event_id: data.event_id,
+          time_on_page: timeOnPage,
+        })
 
-        console.log('Tracking Meta Ads event with data:', userData)
-        ;(window as any).fbq('trackCustom', 'ConversaIniciada', userData)
-        ;(window as any).fbq('track', 'PageView', userData)
+        await trackEvent('ConversaIniciada', {
+          event_identification: '868184259267342',
+          event_name: 'ConversaIniciada',
+          event_description: 'Conversa Iniciada',
+          event_category: 'Atualizar cliente',
+          content_type: 'whatsapp_conversation',
+          content_id: 'conversa_whatsapp',
+          currency: 'BRL',
+          cidade: selectedCity,
+          event_id: data.event_id,
+          time_on_page: timeOnPage,
+          scroll_percentage: scrollPercentage,
+          conversation_channel: 'whatsapp',
+          conversation_status: 'initiated',
+        })
+      } else {
+        await trackEvent('ContactError', {
+          error_type: 'api_error',
+          status_code: response.status,
+          content_type: 'form_submission',
+          content_id: 'whatsapp_lead',
+        })
       }
     } catch (error) {
+      await trackEvent('ContactError', {
+        error_type: 'network_error',
+        error_message: error instanceof Error ? error.message : 'Unknown error',
+        content_type: 'form_submission',
+        content_id: 'whatsapp_lead',
+      })
       console.error('Erro ao enviar dados:', error)
     }
 
-    console.log('Opening WhatsApp link:', whatsappLink)
     window.open(whatsappLink, '_blank')
   }
 

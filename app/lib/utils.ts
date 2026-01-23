@@ -40,3 +40,43 @@ export function formatarTelefoneExibicao(telefone: string): string {
   
   return telefone
 }
+
+export async function hashSHA256(valor: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(valor)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  return hashHex
+}
+
+export function detectarDispositivo(): string {
+  if (typeof window === 'undefined') return 'unknown'
+  
+  const userAgent = navigator.userAgent.toLowerCase()
+  
+  const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|phone|tablet/.test(userAgent)
+  const isTablet = /ipad|android(?!.*mobile)|tablet|kindle|playbook|silk/.test(userAgent)
+  
+  if (isTablet) {
+    return 'tablet'
+  } else if (isMobile) {
+    return 'mobile'
+  } else {
+    return 'desktop'
+  }
+}
+
+export function obterSistemaOperacional(): string {
+  if (typeof window === 'undefined') return 'unknown'
+  
+  const userAgent = navigator.userAgent.toLowerCase()
+  
+  if (userAgent.includes('windows')) return 'windows'
+  if (userAgent.includes('mac')) return 'macos'
+  if (userAgent.includes('linux')) return 'linux'
+  if (userAgent.includes('android')) return 'android'
+  if (userAgent.includes('iphone') || userAgent.includes('ipad')) return 'ios'
+  
+  return 'unknown'
+}
