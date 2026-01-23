@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { normalizarTelefone, validarTelefone, validarEmail, hashSHA256, detectarDispositivo, obterSistemaOperacional } from './lib/utils'
+import { eventTracker, TrackingData } from './lib/eventTracker'
 
 interface Window {
   fbq?: any
@@ -71,8 +72,6 @@ export default function Home() {
   const trackEvent = async (eventName: string, customData: any = {}) => {
     if (typeof window === 'undefined') return
 
-    const eventTime = Math.floor(Date.now() / 1000)
-    const eventId = `${eventName}_${eventTime}_${Math.random().toString(36).substr(2, 9)}`
     const dispositivo = detectarDispositivo()
     const sistemaOperacional = obterSistemaOperacional()
 
@@ -89,22 +88,31 @@ export default function Home() {
       userData.ph = [await hashSHA256(normalizedPhone)]
     }
 
+    const processedEvent = await eventTracker.processEvent(eventName, {
+      ...customData,
+      page_title: document.title,
+      page_url: window.location.href,
+      timestamp: new Date().toISOString(),
+      device_type: dispositivo,
+      operating_system: sistemaOperacional,
+      is_mobile: dispositivo === 'mobile',
+    })
+
+    if (!processedEvent) {
+      console.warn(`Evento ${eventName} foi descartado pela validação ou deduplicação`)
+      return
+    }
+
+    processedEvent.user_data = userData
+
     const event: TrackingEvent = {
-      event_name: eventName,
-      event_time: eventTime,
-      event_id: eventId,
-      action_source: 'website',
-      user_data: userData,
-      custom_data: {
-        ...customData,
-        page_title: document.title,
-        page_url: window.location.href,
-        timestamp: new Date().toISOString(),
-        device_type: dispositivo,
-        operating_system: sistemaOperacional,
-        is_mobile: dispositivo === 'mobile',
-      },
-      event_source_url: window.location.href,
+      event_name: processedEvent.event_name,
+      event_time: processedEvent.event_time,
+      event_id: processedEvent.event_id,
+      action_source: processedEvent.action_source,
+      user_data: processedEvent.user_data,
+      custom_data: processedEvent.custom_data,
+      event_source_url: processedEvent.event_source_url,
     }
 
     await sendToN8N(event)

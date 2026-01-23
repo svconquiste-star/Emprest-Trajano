@@ -10,6 +10,13 @@ interface ContactData {
   user_agent?: string
 }
 
+interface ValidationResult {
+  valid: boolean
+  errors: string[]
+}
+
+const sentEventIds = new Set<string>()
+
 function normalizarTelefone(telefone: string): string {
   const apenasNumeros = telefone.replace(/\D/g, '')
   
@@ -32,9 +39,83 @@ function hashSHA256(valor: string): string {
   return crypto.createHash('sha256').update(valor).digest('hex')
 }
 
+function isValidEmail(email: string): boolean {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return regex.test(email)
+}
+
+function isValidPhone(phone: string): boolean {
+  const apenasNumeros = phone.replace(/\D/g, '')
+  return apenasNumeros.length >= 10 && apenasNumeros.length <= 13
+}
+
+function validateContactData(data: ContactData): ValidationResult {
+  const errors: string[] = []
+
+  if (!data.telefone_cliente || typeof data.telefone_cliente !== 'string') {
+    errors.push('telefone_cliente é obrigatório e deve ser uma string')
+  } else if (!isValidPhone(data.telefone_cliente)) {
+    errors.push('telefone_cliente deve ser um telefone válido')
+  }
+
+  if (data.email_cliente && !isValidEmail(data.email_cliente)) {
+    errors.push('email_cliente deve ser um email válido')
+  }
+
+  if (data.cidade && typeof data.cidade !== 'string') {
+    errors.push('cidade deve ser uma string')
+  }
+
+  if (data.mensagem && typeof data.mensagem !== 'string') {
+    errors.push('mensagem deve ser uma string')
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+  }
+}
+
+function sanitizeContactData(data: ContactData): ContactData {
+  const sanitized = { ...data }
+
+  if (sanitized.telefone_cliente) {
+    sanitized.telefone_cliente = sanitized.telefone_cliente.replace(/\D/g, '')
+  }
+
+  if (sanitized.email_cliente) {
+    sanitized.email_cliente = sanitized.email_cliente.toLowerCase().trim()
+  }
+
+  if (sanitized.cidade) {
+    sanitized.cidade = sanitized.cidade.trim().toUpperCase()
+  }
+
+  if (sanitized.mensagem) {
+    sanitized.mensagem = sanitized.mensagem.trim()
+  }
+
+  return sanitized
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: ContactData = await request.json()
+    
+    const validation = validateContactData(body)
+    if (!validation.valid) {
+      console.error('Erros de validação:', validation.errors)
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Dados inválidos',
+          errors: validation.errors 
+        },
+        { status: 400 }
+      )
+    }
+
+    const sanitized = sanitizeContactData(body)
     
     const clientIp = request.headers.get('x-forwarded-for') || 
                      request.headers.get('x-real-ip') || 
@@ -42,16 +123,27 @@ export async function POST(request: NextRequest) {
     
     const userAgent = request.headers.get('user-agent') || 'Mozilla/5.0'
     
-    const telefonNormalizado = normalizarTelefone(body.telefone_cliente)
+    const telefonNormalizado = normalizarTelefone(sanitized.telefone_cliente)
     const telefonHash = hashSHA256(telefonNormalizado)
     
-    const emailHash = body.email_cliente 
-      ? hashSHA256(body.email_cliente.toLowerCase().trim())
+    const emailHash = sanitized.email_cliente 
+      ? hashSHA256(sanitized.email_cliente.toLowerCase().trim())
       : undefined
     
     const dataNormalizacao = new Date().toISOString()
     const eventTime = Math.floor(Date.now() / 1000)
-    const eventId = `${telefonNormalizado}_${eventTime}`
+    const eventId = `${telefonNormalizado}_${eventTime}_${Math.random().toString(36).substring(2, 15)}`
+    
+    if (sentEventIds.has(eventId)) {
+      console.warn(`Evento duplicado detectado: ${eventId}. Descartando.`)
+      return NextResponse.json({
+        success: false,
+        error: 'Evento duplicado detectado',
+        event_id: eventId,
+      }, { status: 409 })
+    }
+
+    sentEventIds.add(eventId)
     
     const payload = {
       data: [
@@ -68,11 +160,11 @@ export async function POST(request: NextRequest) {
             client_user_agent: userAgent,
           },
           custom_data: {
-            mensagem: body.mensagem || 'Quero saber mais sobre empréstimo',
+            mensagem: sanitized.mensagem || 'Quero saber mais sobre empréstimo',
             data_entrada: dataNormalizacao,
             data_entrada_normalizada: dataNormalizacao,
             canal: 'whatsapp',
-            cidade: body.cidade || 'Não informada',
+            cidade: sanitized.cidade || 'Não informada',
             lead_qualificado: true,
             telefone_normalizado: telefonNormalizado,
           },
