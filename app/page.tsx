@@ -47,6 +47,8 @@ export default function Home() {
         data: [event],
         timestamp: new Date().toISOString(),
         source: 'landing_page',
+        email: userEmail || undefined,
+        telefone: userPhone || undefined,
       }
       
       console.log('Enviando evento para N8N:', payload)
