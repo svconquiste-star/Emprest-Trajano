@@ -294,20 +294,20 @@ export default function Home() {
           time_on_page: timeOnPage,
         })
 
-        await trackEvent('ConversaIniciada', {
+        await trackEvent('WhatsAppButtonClick', {
           event_identification: '868184259267342',
-          event_name: 'ConversaIniciada',
-          event_description: 'Conversa Iniciada',
-          event_category: 'Atualizar cliente',
-          content_type: 'whatsapp_conversation',
-          content_id: 'conversa_whatsapp',
+          event_name: 'WhatsAppButtonClick',
+          event_description: 'Botão WhatsApp Clicado',
+          event_category: 'Button Click',
+          content_type: 'whatsapp_button',
+          content_id: 'whatsapp_button_click',
           currency: 'BRL',
           cidade: selectedCity,
           event_id: data.event_id,
           time_on_page: timeOnPage,
           scroll_percentage: scrollPercentage,
           conversation_channel: 'whatsapp',
-          conversation_status: 'initiated',
+          conversation_status: 'button_clicked',
         })
       } else {
         await trackEvent('ContactError', {
