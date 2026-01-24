@@ -25,6 +25,7 @@ export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [userEmail, setUserEmail] = useState<string>('')
   const [userPhone, setUserPhone] = useState<string>('')
+  const [phoneError, setPhoneError] = useState<string>('')
   const [pageStartTime] = useState<number>(Date.now())
   const [scrollPercentage, setScrollPercentage] = useState<number>(0)
   const scrollTrackedRef = useRef<Set<number>>(new Set())
@@ -32,13 +33,15 @@ export default function Home() {
   const whatsappLink = "https://wa.me/553198859382?text=Ol%C3%A1%21%20Quero%20fazer%20uma%20simula%C3%A7%C3%A3o%20de%20empr%C3%A9stimo.%20Meu%20nome%20%C3%A9%20____%2C%20valor%20desejado%20R%24____%2C%20minha%20renda%20%C3%A9%20R%24____."
 
   const cidades = [
-    "BETIM", "BRUMADINHO", "CITROLÂNDIA", "CONTAGEM", "IBIRITE", "IGARAPÉ",
-    "MÁRIO CAMPOS", "MATEUS LEME", "SÃO JOAQUIM DE BICAS", "SARZEDO", "OUTRA CIDADE"
+    "BELO HORIZONTE", "RIBEIRÃO DAS NEVES", "JUATUBA", "BARREIRO", "CONTAGEM",
+    "SARZEDO", "SÃO JOAQUIM DE BICAS", "IGARAPÉ", "IBIRITÉ", "MATEUS LEME",
+    "MÁRIO CAMPOS", "BRUMADINHO", "OUTRA CIDADE"
   ]
 
   const atendidas = new Set([
-    "BETIM", "BRUMADINHO", "CITROLÂNDIA", "CONTAGEM", "IBIRITE", "IGARAPÉ",
-    "MÁRIO CAMPOS", "MATEUS LEME", "SÃO JOAQUIM DE BICAS", "SARZEDO"
+    "BELO HORIZONTE", "RIBEIRÃO DAS NEVES", "JUATUBA", "BARREIRO", "CONTAGEM",
+    "SARZEDO", "SÃO JOAQUIM DE BICAS", "IGARAPÉ", "IBIRITÉ", "MATEUS LEME",
+    "MÁRIO CAMPOS", "BRUMADINHO"
   ])
 
   const sendToN8N = async (event: TrackingEvent) => {
@@ -208,7 +211,20 @@ export default function Home() {
     }
   }
 
-  const isWhatsAppEnabled = selectedCity && selectedCity !== "OUTRA CIDADE" && atendidas.has(selectedCity)
+  const isPhoneValid = userPhone && validarTelefone(userPhone)
+  const isWhatsAppEnabled = selectedCity && selectedCity !== "OUTRA CIDADE" && atendidas.has(selectedCity) && isPhoneValid
+
+  const handlePhoneChange = (value: string) => {
+    setUserPhone(value)
+    
+    if (!value.trim()) {
+      setPhoneError('Telefone é obrigatório')
+    } else if (!validarTelefone(value)) {
+      setPhoneError('Telefone inválido. Use o formato: DD + 8 ou 9 dígitos (ex: 31987654321 ou 3187654321)')
+    } else {
+      setPhoneError('')
+    }
+  }
 
   const handleWhatsAppClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault()
@@ -239,6 +255,8 @@ export default function Home() {
     }
 
     const telefonNormalizado = normalizarTelefone(userPhone)
+    const mensagemWhatsApp = `Olá! Quero fazer uma simulação de empréstimo. Moro em ${selectedCity} e meu telefone é ${telefonNormalizado}`
+    const whatsappLinkDinamico = `https://wa.me/553198859382?text=${encodeURIComponent(mensagemWhatsApp)}`
     const timeOnPage = Math.round((Date.now() - pageStartTime) / 1000)
 
     try {
@@ -309,7 +327,7 @@ export default function Home() {
       console.error('Erro ao enviar dados:', error)
     }
 
-    window.open(whatsappLink, '_blank')
+    window.open(whatsappLinkDinamico, '_blank')
   }
 
   return (
@@ -364,21 +382,35 @@ export default function Home() {
                     fontFamily: 'var(--font)',
                   }}
                 />
-                <input
-                  type="tel"
-                  placeholder="Seu telefone"
-                  value={userPhone}
-                  onChange={(e) => setUserPhone(e.target.value)}
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: '12px',
-                    border: '1px solid rgba(255,255,255,.2)',
-                    background: 'rgba(255,255,255,.08)',
-                    color: 'var(--text)',
-                    fontSize: '14px',
-                    fontFamily: 'var(--font)',
-                  }}
-                />
+                <div>
+                  <input
+                    type="tel"
+                    placeholder="Seu telefone *"
+                    value={userPhone}
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      border: phoneError ? '2px solid #ef4444' : '1px solid rgba(255,255,255,.2)',
+                      background: 'rgba(255,255,255,.08)',
+                      color: 'var(--text)',
+                      fontSize: '14px',
+                      fontFamily: 'var(--font)',
+                      width: '100%',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  {phoneError && (
+                    <small style={{
+                      color: '#ef4444',
+                      display: 'block',
+                      marginTop: '4px',
+                      fontSize: '12px',
+                    }}>
+                      {phoneError}
+                    </small>
+                  )}
+                </div>
               </div>
               <button
                 className={`btn btn-whats ${isWhatsAppEnabled ? 'active' : 'btn-disabled'}`}
