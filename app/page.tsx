@@ -134,6 +134,24 @@ export default function Home() {
     }
   }
 
+  const trackPixelEvent = (eventName: string, customData: any = {}) => {
+    if (typeof window === 'undefined') return
+    if (!(window as any).fbq) return
+
+    const dispositivo = detectarDispositivo()
+    const sistemaOperacional = obterSistemaOperacional()
+
+    const fbqData = {
+      ...customData,
+      email: userEmail ? userEmail.toLowerCase().trim() : undefined,
+      phone: userPhone ? normalizarTelefone(userPhone) : undefined,
+      device_type: dispositivo,
+      operating_system: sistemaOperacional,
+    }
+
+    ;(window as any).fbq('trackCustom', eventName, fbqData)
+  }
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const script = document.createElement('script')
@@ -259,6 +277,16 @@ export default function Home() {
     const whatsappLinkDinamico = `https://wa.me/553198859382?text=${encodeURIComponent(mensagemWhatsApp)}`
     const timeOnPage = Math.round((Date.now() - pageStartTime) / 1000)
 
+    trackPixelEvent('ConversaIniciada', {
+      content_type: 'whatsapp',
+      content_id: 'whatsapp_conversa_iniciada',
+      cidade: selectedCity,
+      time_on_page: timeOnPage,
+      scroll_percentage: scrollPercentage,
+      conversation_channel: 'whatsapp',
+      conversation_status: 'initiated',
+    })
+
     try {
       await trackEvent('Lead', {
         content_type: 'form_submission',
@@ -327,7 +355,9 @@ export default function Home() {
       console.error('Erro ao enviar dados:', error)
     }
 
-    window.open(whatsappLinkDinamico, '_blank')
+    setTimeout(() => {
+      window.open(whatsappLinkDinamico, '_blank')
+    }, 150)
   }
 
   return (
