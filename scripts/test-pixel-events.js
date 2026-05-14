@@ -4,7 +4,7 @@
  */
 
 const PIXEL_ID = '1259132386343198';
-const ACCESS_TOKEN = 'EAAS9U9wMmJkBRKCoC5zjDnJOe1kcXrCKYpztFub8lZBDEN1dHDwzaBMIjl3p87ege0POkAwlZCBvBsZATZBIegY91nQZAHgFSBP8n9ripQhC1YIp04BQWAU5XnHj8QgireSVJ3B8huRSSZCZB791vtyIZCspvSBZBUYy7CL1HJEy5e3xkDcTJ1dqv9bubs6ewBJboWwZDZD';
+const ACCESS_TOKEN = 'EAAS9U9wMmJkBRAdyIqWcV9iIkR7UNbIXmi9PXtvExoymbIRjvii28TfjDEDITzY5S3HlwVySVUl2522XlxICU9jEM7txsN9CF1oUYLa6fcmvyHpI8V27LE1JW1eRQ61mwMzz5K7E2yHiRmAe6yZBZAD390BxbQshNFZCOCnAvXPCznNvZCwroL7AUbH6VNqj2AZDZD';
 const TEST_EVENT_CODE = 'TEST64356';
 
 const API_URL = `https://graph.facebook.com/v21.0/${PIXEL_ID}/events?access_token=${ACCESS_TOKEN}`;
@@ -79,7 +79,25 @@ async function main() {
     },
   });
 
-  console.log('\n=== Todos os 3 eventos de teste foram enviados ===');
+  // Evento 4: Lead
+  await sendEvent('Lead', `${Date.now()}_Lead_test4`, {
+    custom_data: {
+      currency: 'BRL',
+      content_type: 'product',
+      content_id: 'atendimento',
+    },
+  });
+
+  // Evento 5: InitiateCheckout
+  await sendEvent('InitiateCheckout', `${Date.now()}_InitiateCheckout_test5`, {
+    custom_data: {
+      currency: 'BRL',
+      content_type: 'product',
+      content_id: 'atendimento',
+    },
+  });
+
+  console.log('\n=== Todos os 5 eventos de teste foram enviados ===');
 }
 
 main().catch(console.error);
